@@ -12,6 +12,11 @@ import (
 	"github.com/paketo-buildpacks/dep-server/pkg/dependency/licenses"
 )
 
+
+// TODO
+// 1. Finish CPE map
+// 2. allow args to function so we can call like a CLI
+
 type DepMetadata struct {
 	Version         string   `json:"version"`
 	URI             string   `json:"uri"`
@@ -65,7 +70,7 @@ func main() {
 
 			dep.Licenses = licenses
 			if dep.CPE == "" {
-				dep.CPE = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", dep.Version)
+				dep.CPE = GetCPE(dependencyName, dep.Version)
 			}
 
 			// dispatchDep is an exact copy of the dep, but the license are a string instead of slice.
@@ -126,3 +131,29 @@ func main() {
 	fmt.Println("Success!")
 
 }
+
+func GetCPE(depName, version string) string {
+	cpeMap := make(map[string]string)
+	cpeMap["bundler"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	cpeMap["composer"] = ""
+	cpeMap["curl"] = fmt.Sprintf("cpe:2.3:a:haxx:curl:%s:*:*:*:*:*:*:*", version),
+	// cpeMap["dotnet-aspnetcore"] = fmt.Sprintf("cpe:2.3:a:microsoft:asp.net_core:%s:*:*:*:*:*:*:*", strings.Join(strings.Split(version, ".")[0:2], "."))
+	// cpeMap["dotnet-runtime"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["dotnet-sdk"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["go"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["httpd"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["icu"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["nginx"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["node"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["php"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["pip"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["pipenv"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["python"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["ruby"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["rust"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["tini"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	// cpeMap["yarn"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+
+	return cpeMap[depName]
+}
+
