@@ -36,10 +36,10 @@ type DispatchDepMetadata struct {
 
 func main() {
 	// Takes in the name of 1 dep => dispatches to the test-upload workflow with all metadata
-	dependencyName := "tini"
+	dependencyName := "bundler"
 
 	// reach out to the api.deps..../<dep-name> get all the metadata for all versions
-	resp, err := http.Get(fmt.Sprintf("https://api.deps.paketo.io/v1/dependency?name=%s", dependencyName))
+	resp, err := http.Get(fmt.Sprintf("https://api.deps.paketo.io/v1/dependency?name=%s&per_page=100", dependencyName))
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -55,72 +55,71 @@ func main() {
 	// for each dep version ... get all metadata except licenses
 	licenseRetriever := licenses.NewLicenseRetriever()
 	for _, dep := range deps {
-		// pass the dep name and source URL and whatever else to pkg/dependency/licenses to get licenses
-		licenses, err := licenseRetriever.LookupLicenses(dependencyName, dep.Source)
-		if err != nil {
-			log.Fatal(err)
+		if len(dep.Licenses) == 0 || dep.CPE == "" {
+			// pass the dep name and source URL and whatever else to pkg/dependency/licenses to get licenses
+			licenses, err := licenseRetriever.LookupLicenses(dependencyName, dep.Source)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			dep.Licenses = licenses
+			if dep.CPE == "" {
+				dep.CPE = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", dep.Version)
+			}
+
+			// dispatchDep is an exact copy of the dep, but the license are a string instead of slice.
+			dispatchDep := DispatchDepMetadata{}
+			dispatchDep.Version = dep.Version
+			dispatchDep.URI = dep.URI
+			dispatchDep.SHA256 = dep.SHA256
+			dispatchDep.Source = dep.Source
+			dispatchDep.SourceSHA256 = dep.SourceSHA256
+			dispatchDep.DeprecationDate = dep.DeprecationDate
+			dispatchDep.CPE = dep.CPE
+			dispatchDep.Licenses = strings.Join(dep.Licenses, ",")
+
+			payload, err := json.Marshal(dispatchDep)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			var dispatch struct {
+				EventType     string          `json:"event_type"`
+				ClientPayload json.RawMessage `json:"client_payload"`
+			}
+
+			dispatch.EventType = fmt.Sprintf("%s-test", dependencyName)
+			dispatch.ClientPayload = json.RawMessage(payload)
+
+			payloadData, err := json.Marshal(&dispatch)
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			fmt.Println(string(payloadData))
+			req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
+
+			resp2, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer resp2.Body.Close()
+
+			if resp2.StatusCode != http.StatusOK && resp2.StatusCode != 204 {
+				fmt.Println(resp2.StatusCode)
+				log.Fatal(err)
+			}
+
+			fmt.Printf("Success version %s!\n", dep.Version)
+
+		} else {
+			fmt.Printf("Skipped %s %s because license and CPE are already present", dependencyName, dep.Version)
 		}
-
-		// licensePayload, err := json.Marshal(licenses)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
-
-		dep.Licenses = licenses
-		if dep.CPE == "" {
-			dep.CPE = fmt.Sprintf("cpe:2.3:a:tini_project:tini:%s:*:*:*:*:*:*:*", strings.TrimPrefix(dep.Version, "v"))
-		}
-
-		// dispatchDep is an exact copy of the dep, but the license are a string instead of slice.
-		dispatchDep := DispatchDepMetadata{}
-		dispatchDep.Version = dep.Version
-		dispatchDep.URI = dep.URI
-		dispatchDep.SHA256 = dep.SHA256
-		dispatchDep.Source = dep.Source
-		dispatchDep.SourceSHA256 = dep.SourceSHA256
-		dispatchDep.DeprecationDate = dep.DeprecationDate
-		dispatchDep.CPE = dep.CPE
-		dispatchDep.Licenses = strings.Join(dep.Licenses, ",")
-
-		payload, err := json.Marshal(dispatchDep)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		var dispatch struct {
-			EventType     string          `json:"event_type"`
-			ClientPayload json.RawMessage `json:"client_payload"`
-		}
-
-		dispatch.EventType = "tini-test"
-		dispatch.ClientPayload = json.RawMessage(payload)
-
-		payloadData, err := json.Marshal(&dispatch)
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		fmt.Println(string(payloadData))
-		// // send dispatch w all the info for each version
-		req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
-		if err != nil {
-			log.Fatal(err)
-		}
-
-		req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
-
-		resp2, err := http.DefaultClient.Do(req)
-		if err != nil {
-			log.Fatal(err)
-		}
-		defer resp2.Body.Close()
-
-		// // make sure we get a 200 status code
-		if resp2.StatusCode != http.StatusOK || resp2.StatusCode != 204 {
-			fmt.Println(resp2.StatusCode)
-			log.Fatal(err)
-		}
-		fmt.Printf("Success version %s!\n", dep.Version)
 	}
 
 	fmt.Println("Success!")
