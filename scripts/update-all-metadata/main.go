@@ -56,6 +56,7 @@ func main() {
 	licenseRetriever := licenses.NewLicenseRetriever()
 	for _, dep := range deps {
 		if len(dep.Licenses) == 0 || dep.CPE == "" {
+			fmt.Println(dep.Version)
 			// pass the dep name and source URL and whatever else to pkg/dependency/licenses to get licenses
 			licenses, err := licenseRetriever.LookupLicenses(dependencyName, dep.Source)
 			if err != nil {
@@ -118,7 +119,7 @@ func main() {
 			fmt.Printf("Success version %s!\n", dep.Version)
 
 		} else {
-			fmt.Printf("Skipped %s %s because license and CPE are already present", dependencyName, dep.Version)
+			fmt.Printf("Skipped %s %s because license and CPE are already present\n", dependencyName, dep.Version)
 		}
 	}
 
