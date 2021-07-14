@@ -1,20 +1,33 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/paketo-buildpacks/dep-server/pkg/dependency/licenses"
 )
 
 type DepMetadata struct {
+	Version         string   `json:"version"`
+	URI             string   `json:"uri"`
+	SHA256          string   `json:"sha256"`
+	Source          string   `json:"source"`
+	SourceSHA256    string   `json:"source_sha256"`
+	DeprecationDate string   `json:"deprecation_date"`
+	CPE             string   `json:"cpe,omitempty"`
+	Licenses        []string `json:"licenses"`
+}
+
+type DispatchDepMetadata struct {
 	Version         string `json:"version"`
 	URI             string `json:"uri"`
 	SHA256          string `json:"sha256"`
-	Source          string `json:"source"`
+	Source          string `json:"source_uri"`
 	SourceSHA256    string `json:"source_sha256"`
 	DeprecationDate string `json:"deprecation_date"`
 	CPE             string `json:"cpe,omitempty"`
@@ -48,18 +61,28 @@ func main() {
 			log.Fatal(err)
 		}
 
-		licensePayload, err := json.Marshal(licenses)
-		if err != nil {
-			log.Fatal(err)
-		}
+		// licensePayload, err := json.Marshal(licenses)
+		// if err != nil {
+		// 	log.Fatal(err)
+		// }
 
-		dep.Licenses = string(licensePayload)
-
+		dep.Licenses = licenses
 		if dep.CPE == "" {
 			dep.CPE = fmt.Sprintf("cpe:2.3:a:tini_project:tini:%s:*:*:*:*:*:*:*", strings.TrimPrefix(dep.Version, "v"))
 		}
 
-		payload, err := json.Marshal(dep)
+		// dispatchDep is an exact copy of the dep, but the license are a string instead of slice.
+		dispatchDep := DispatchDepMetadata{}
+		dispatchDep.Version = dep.Version
+		dispatchDep.URI = dep.URI
+		dispatchDep.SHA256 = dep.SHA256
+		dispatchDep.Source = dep.Source
+		dispatchDep.SourceSHA256 = dep.SourceSHA256
+		dispatchDep.DeprecationDate = dep.DeprecationDate
+		dispatchDep.CPE = dep.CPE
+		dispatchDep.Licenses = strings.Join(dep.Licenses, ",")
+
+		payload, err := json.Marshal(dispatchDep)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -79,23 +102,25 @@ func main() {
 
 		fmt.Println(string(payloadData))
 		// // send dispatch w all the info for each version
-		// req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
+		req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
+		if err != nil {
+			log.Fatal(err)
+		}
 
-		// req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
+		req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
 
-		// resp2, err := http.DefaultClient.Do(req)
-		// if err != nil {
-		// 	log.Fatal(err)
-		// }
+		resp2, err := http.DefaultClient.Do(req)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer resp2.Body.Close()
+
 		// // make sure we get a 200 status code
-		// if resp2.StatusCode != http.StatusOK {
-		// 	fmt.Println(resp2.StatusCode)
-		// 	log.Fatal(err)
-		// }
-		// fmt.Printf("Success version %s!\n", dep.Version)
+		if resp2.StatusCode != http.StatusOK || resp2.StatusCode != 204 {
+			fmt.Println(resp2.StatusCode)
+			log.Fatal(err)
+		}
+		fmt.Printf("Success version %s!\n", dep.Version)
 	}
 
 	fmt.Println("Success!")
