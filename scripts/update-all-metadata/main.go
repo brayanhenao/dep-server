@@ -1,20 +1,17 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
-	"os"
 	"strings"
 
+	"github.com/Masterminds/semver"
 	"github.com/paketo-buildpacks/dep-server/pkg/dependency/licenses"
 )
 
-
 // TODO
-// 1. Finish CPE map
 // 2. allow args to function so we can call like a CLI
 
 type DepMetadata struct {
@@ -41,7 +38,7 @@ type DispatchDepMetadata struct {
 
 func main() {
 	// Takes in the name of 1 dep => dispatches to the test-upload workflow with all metadata
-	dependencyName := "bundler"
+	dependencyName := "dotnet-runtime"
 
 	// reach out to the api.deps..../<dep-name> get all the metadata for all versions
 	resp, err := http.Get(fmt.Sprintf("https://api.deps.paketo.io/v1/dependency?name=%s&per_page=100", dependencyName))
@@ -103,23 +100,24 @@ func main() {
 			}
 
 			fmt.Println(string(payloadData))
-			req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
-			if err != nil {
-				log.Fatal(err)
-			}
 
-			req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
+			// req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
 
-			resp2, err := http.DefaultClient.Do(req)
-			if err != nil {
-				log.Fatal(err)
-			}
-			defer resp2.Body.Close()
+			// req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
 
-			if resp2.StatusCode != http.StatusOK && resp2.StatusCode != 204 {
-				fmt.Println(resp2.StatusCode)
-				log.Fatal(err)
-			}
+			// resp2, err := http.DefaultClient.Do(req)
+			// if err != nil {
+			// 	log.Fatal(err)
+			// }
+			// defer resp2.Body.Close()
+
+			// if resp2.StatusCode != http.StatusOK && resp2.StatusCode != 204 {
+			// 	fmt.Println(resp2.StatusCode)
+			// 	log.Fatal(err)
+			// }
 
 			fmt.Printf("Success version %s!\n", dep.Version)
 
@@ -133,27 +131,64 @@ func main() {
 }
 
 func GetCPE(depName, version string) string {
-	cpeMap := make(map[string]string)
-	cpeMap["bundler"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	cpeMap["composer"] = ""
-	cpeMap["curl"] = fmt.Sprintf("cpe:2.3:a:haxx:curl:%s:*:*:*:*:*:*:*", version),
-	// cpeMap["dotnet-aspnetcore"] = fmt.Sprintf("cpe:2.3:a:microsoft:asp.net_core:%s:*:*:*:*:*:*:*", strings.Join(strings.Split(version, ".")[0:2], "."))
-	// cpeMap["dotnet-runtime"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["dotnet-sdk"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["go"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["httpd"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["icu"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["nginx"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["node"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["php"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["pip"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["pipenv"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["python"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["ruby"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["rust"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["tini"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
-	// cpeMap["yarn"] = fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	switch depName {
+	case "bundler":
+		return fmt.Sprintf("cpe:2.3:a:bundler:bundler:%s:*:*:*:*:ruby:*:*", version)
+	case "composer":
+		return ""
+	case "curl":
+		return fmt.Sprintf("cpe:2.3:a:haxx:curl:%s:*:*:*:*:*:*:*", version)
+	case "dotnet-aspnetcore":
+		dotnetAspnetCoreVersion := strings.Join(strings.Split(version, ".")[0:2], ".")
+		return fmt.Sprintf("cpe:2.3:a:microsoft:asp.net_core:%s:*:*:*:*:*:*:*", dotnetAspnetCoreVersion)
 
-	return cpeMap[depName]
+	case "dotnet-runtime":
+		dotnetCoreRuntimeVersion, err := semver.NewVersion(version)
+		if err != nil {
+			log.Fatal(err)
+		}
+		productName := ".net"
+		if dotnetCoreRuntimeVersion.LessThan(semver.MustParse("5.0.0-0")) { // use 5.0.0-0 to ensure 5.0.0 previews/RCs use the new `.net` product name
+			productName = ".net_core"
+		}
+		return fmt.Sprintf("cpe:2.3:a:microsoft:%s:%s:*:*:*:*:*:*:*", productName, version)
+
+	case "dotnet-sdk":
+		dotnetCoreSDKVersion, err := semver.NewVersion(version)
+		if err != nil {
+			log.Fatal(err)
+		}
+		productName := ".net"
+		if dotnetCoreSDKVersion.LessThan(semver.MustParse("5.0.0-0")) { // use 5.0.0-0 to ensure 5.0.0 previews/RCs use the new `.net` product name
+			productName = ".net_core"
+		}
+		return fmt.Sprintf("cpe:2.3:a:microsoft:%s:%s:*:*:*:*:*:*:*", productName, version)
+	case "go":
+		return fmt.Sprintf("cpe:2.3:a:golang:go:%s:*:*:*:*:*:*:*", strings.TrimPrefix(version, "go"))
+	case "httpd":
+		return fmt.Sprintf("cpe:2.3:a:apache:http_server:%s:*:*:*:*:*:*:*", version)
+	case "icu":
+		return fmt.Sprintf(`cpe:2.3:a:icu-project:international_components_for_unicode:%s:*:*:*:*:c\/c\+\+:*:*`, version)
+	case "nginx":
+		return fmt.Sprintf("cpe:2.3:a:nginx:nginx:%s:*:*:*:*:*:*:*", version)
+	case "node":
+		return fmt.Sprintf("cpe:2.3:a:nodejs:node.js:%s:*:*:*:*:*:*:*", strings.TrimPrefix(version, "v"))
+	case "php":
+		return fmt.Sprintf("cpe:2.3:a:php:php:%s:*:*:*:*:*:*:*", version)
+	case "pip":
+		return fmt.Sprintf("cpe:2.3:a:pypa:pip:%s:*:*:*:*:python:*:*", version)
+	case "pipenv":
+		return ""
+	case "python":
+		fmt.Sprintf("cpe:2.3:a:python:python:%s:*:*:*:*:*:*:*", version)
+	case "ruby":
+		return fmt.Sprintf("cpe:2.3:a:ruby-lang:ruby:%s:*:*:*:*:*:*:*", version)
+	case "rust":
+		return fmt.Sprintf("cpe:2.3:a:rust-lang:rust:%s:*:*:*:*:*:*:*", version)
+	case "tini":
+		return fmt.Sprintf("cpe:2.3:a:tini_project:tini:%s:*:*:*:*:*:*:*", strings.TrimPrefix(version, "v"))
+	case "yarn":
+		return fmt.Sprintf("cpe:2.3:a:yarnpkg:yarn:%s:*:*:*:*:*:*:*", version)
+	}
+	return ""
 }
-
