@@ -70,20 +70,25 @@ func main() {
 	// for each dep version ... get all metadata except licenses
 	licenseRetriever := licenses.NewLicenseRetriever()
 	for _, dep := range deps {
+		// don't touch anything if the metadata is complete
 		if len(dep.Licenses) == 0 || dep.CPE == "" {
 			fmt.Println(dep.Version)
+
 			// pass the dep name and source URL and whatever else to pkg/dependency/licenses to get licenses
-			licenses, err := licenseRetriever.LookupLicenses(dependencyName, dep.Source)
-			if err != nil {
-				log.Fatal(err)
+			if len(dep.Licenses) == 0 {
+				licenses, err := licenseRetriever.LookupLicenses(dependencyName, dep.Source)
+				if err != nil {
+					log.Fatal(err)
+				}
+
+				dep.Licenses = licenses
 			}
 
-			dep.Licenses = licenses
 			if dep.CPE == "" {
 				dep.CPE = GetCPE(dependencyName, dep.Version)
 			}
 
-			// dispatchDep is an exact copy of the dep, but the license are a string instead of slice.
+			// dispatchDep is an exact copy of the dep, but the licenses are a string instead of slice.
 			dispatchDep := DispatchDepMetadata{}
 			dispatchDep.Version = dep.Version
 			dispatchDep.URI = dep.URI
