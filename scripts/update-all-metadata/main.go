@@ -1,18 +1,22 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"log"
 	"net/http"
+	"os"
 	"strings"
 
 	"github.com/Masterminds/semver"
 	"github.com/paketo-buildpacks/dep-server/pkg/dependency/licenses"
 )
 
-// TODO
-// 2. allow args to function so we can call like a CLI
+// USAGE
+// `go run main.go --name <dependency-name>`
+// This will update the license and CPE fields for each dependency if they are not already present.
 
 type DepMetadata struct {
 	Version         string   `json:"version"`
@@ -37,8 +41,17 @@ type DispatchDepMetadata struct {
 }
 
 func main() {
+	var (
+		dependencyName string
+	)
+
 	// Takes in the name of 1 dep => dispatches to the test-upload workflow with all metadata
-	dependencyName := "dotnet-runtime"
+	flag.StringVar(&dependencyName, "name", "", "Dependency name")
+	flag.Parse()
+	if dependencyName == "" {
+		fmt.Println("`name` s required")
+		os.Exit(1)
+	}
 
 	// reach out to the api.deps..../<dep-name> get all the metadata for all versions
 	resp, err := http.Get(fmt.Sprintf("https://api.deps.paketo.io/v1/dependency?name=%s&per_page=100", dependencyName))
@@ -101,23 +114,23 @@ func main() {
 
 			fmt.Println(string(payloadData))
 
-			// req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
+			req, err := http.NewRequest("POST", "https://api.github.com/repos/paketo-buildpacks/dep-server/dispatches", bytes.NewBuffer(payloadData))
+			if err != nil {
+				log.Fatal(err)
+			}
 
-			// req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
+			req.Header.Set("Authorization", fmt.Sprintf("token %s", os.Getenv("GITHUB_TOKEN")))
 
-			// resp2, err := http.DefaultClient.Do(req)
-			// if err != nil {
-			// 	log.Fatal(err)
-			// }
-			// defer resp2.Body.Close()
+			resp2, err := http.DefaultClient.Do(req)
+			if err != nil {
+				log.Fatal(err)
+			}
+			defer resp2.Body.Close()
 
-			// if resp2.StatusCode != http.StatusOK && resp2.StatusCode != 204 {
-			// 	fmt.Println(resp2.StatusCode)
-			// 	log.Fatal(err)
-			// }
+			if resp2.StatusCode != http.StatusOK && resp2.StatusCode != 204 {
+				fmt.Println(resp2.StatusCode)
+				log.Fatal(err)
+			}
 
 			fmt.Printf("Success version %s!\n", dep.Version)
 
