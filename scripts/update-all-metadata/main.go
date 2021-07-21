@@ -12,6 +12,7 @@ import (
 
 	"github.com/Masterminds/semver"
 	"github.com/paketo-buildpacks/dep-server/pkg/dependency/licenses"
+	"github.com/paketo-buildpacks/dep-server/pkg/dependency/purl"
 )
 
 // USAGE
@@ -26,6 +27,7 @@ type DepMetadata struct {
 	SourceSHA256    string   `json:"source_sha256"`
 	DeprecationDate string   `json:"deprecation_date"`
 	CPE             string   `json:"cpe,omitempty"`
+	PURL            string   `json:"purl,omitempty"`
 	Licenses        []string `json:"licenses"`
 }
 
@@ -37,6 +39,7 @@ type DispatchDepMetadata struct {
 	SourceSHA256    string `json:"source_sha256"`
 	DeprecationDate string `json:"deprecation_date"`
 	CPE             string `json:"cpe,omitempty"`
+	PURL            string `json:"purl,omitempty"`
 	Licenses        string `json:"licenses"`
 }
 
@@ -67,11 +70,13 @@ func main() {
 		log.Fatal(err)
 	}
 
-	// for each dep version ... get all metadata except licenses
 	licenseRetriever := licenses.NewLicenseRetriever()
+	purlGenerator := purl.NewPURLGenerator()
+
 	for _, dep := range deps {
 		// don't touch anything if the metadata is complete
-		if len(dep.Licenses) == 0 || dep.CPE == "" {
+
+		if len(dep.Licenses) == 0 || dep.CPE == "" || dep.PURL == "" {
 			fmt.Println(dep.Version)
 
 			// pass the dep name and source URL and whatever else to pkg/dependency/licenses to get licenses
@@ -80,7 +85,6 @@ func main() {
 				if err != nil {
 					log.Fatal(err)
 				}
-
 				dep.Licenses = licenses
 			}
 
@@ -88,8 +92,13 @@ func main() {
 				dep.CPE = GetCPE(dependencyName, dep.Version)
 			}
 
+			if dep.PURL == "" {
+				dep.PURL = purlGenerator.Generate(dependencyName, dep.Version, dep.SHA256, dep.Source)
+			}
+
 			// dispatchDep is an exact copy of the dep, but the licenses are a string instead of slice.
 			dispatchDep := DispatchDepMetadata{}
+
 			dispatchDep.Version = dep.Version
 			dispatchDep.URI = dep.URI
 			dispatchDep.SHA256 = dep.SHA256
@@ -97,6 +106,7 @@ func main() {
 			dispatchDep.SourceSHA256 = dep.SourceSHA256
 			dispatchDep.DeprecationDate = dep.DeprecationDate
 			dispatchDep.CPE = dep.CPE
+			dispatchDep.PURL = dep.PURL
 			dispatchDep.Licenses = strings.Join(dep.Licenses, ",")
 
 			payload, err := json.Marshal(dispatchDep)
