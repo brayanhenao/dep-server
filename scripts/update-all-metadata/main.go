@@ -150,7 +150,7 @@ func main() {
 			fmt.Printf("Success version %s!\n", dep.Version)
 
 		} else {
-			fmt.Printf("Skipped %s %s because license and CPE are already present\n", dependencyName, dep.Version)
+			fmt.Printf("Skipped %s %s because license, purl, and CPE are already present\n", dependencyName, dep.Version)
 		}
 	}
 
